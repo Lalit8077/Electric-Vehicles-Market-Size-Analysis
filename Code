@@ -1,0 +1,187 @@
+import pandas as pd
+ev_data = pd.read_csv('Electric_Vehicle_Population_Data.csv')
+print(ev_data.head())
+
+So, this data is based on the EV population in the United States. Now, let’s clean the dataset before moving forward:
+ev_data.info()
+ev_data.isnull().sum()
+ev_data = ev_data.dropna()
+
+Let’s start with analyzing the EV Adoption Over Time by visualizing the number of EVs registered by model year.
+It will give us an insight into how the EV population has grown over the years:
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style("whitegrid")
+
+# EV Adoption Over Time
+plt.figure(figsize=(12, 6))
+ev_adoption_by_year = ev_data['Model Year'].value_counts().sort_index()
+sns.barplot(x=ev_adoption_by_year.index, y=ev_adoption_by_year.values, palette="viridis")
+plt.title('EV Adoption Over Time')
+plt.xlabel('Model Year')
+plt.ylabel('Number of Vehicles Registered')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+Now, let’s start by selecting the top 3 countries based on EV registrations and then analyze 
+the distribution of EVs within the cities of those counties:
+
+ev_country_distribution = ev_data['Country'].value_counts()
+top_countries = ev_county_distribution.head(3).index
+
+top_countries_data = ev_data[ev_data['County'].isin(top_counties)]
+
+ev_city_distribution_top_countries = top_countries_data.groupby(['Country', 'City']).size().sort_values(ascending=False).reset_index(name='Number of Vehicles')
+
+
+top_cities = ev_city_distribution_top_countries.head(10)
+
+plt.figure(figsize=(12, 8))
+sns.barplot(x='Number of Vehicles', y='City', hue='Country', data=top_cities, palette="magma")
+plt.title('Top Cities in Top Countries by EV Registrations')
+plt.xlabel('Number of Vehicles Registered')
+plt.ylabel('City')
+plt.legend(title='County')
+plt.tight_layout()
+plt.show()
+
+Next, let’s explore the types of electric vehicles represented in this dataset. 
+Understanding the breakdown between different EV types, such as Battery Electric Vehicles (BEV) and Plug-in Hybrid Electric Vehicles (PHEV),
+can provide insights into consumer preferences and the adoption patterns of purely electric vs. hybrid electric solutions.
+
+ev_type_distribution = ev_data['Electric Vehicle Type'].value_counts()
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x=ev_type_distribution.values, y=ev_type_distribution.index, palette="rocket")
+plt.title('Distribution of Electric Vehicle Types')
+plt.xlabel('Number of Vehicles Registered')
+plt.ylabel('Electric Vehicle Type')
+plt.tight_layout()
+plt.show()
+
+let’s have a look at the most popular manufacturers and then drill down into the most popular models within those manufacturers:
+
+ev_make_distribution = ev_data['Make'].value_counts().head(10)
+plt.figure(figsize=(12, 6))
+sns.barplot(x=ev_make_distribution.values, y=ev_make_distribution.index, palette="cubehelix")
+plt.title('Top 10 Popular EV Makes')
+plt.xlabel('Number of Vehicles Registered')
+plt.ylabel('Make')
+plt.tight_layout()
+plt.show()
+
+Now drill down into the most popular models within these top manufacturers to get a more detailed understanding of consumer preferences at the model level:
+
+top_3_makes = ev_make_distribution.head(3).index
+
+top_makes_data = ev_data[ev_data['Make'].isin(top_3_makes)]
+
+ev_model_distribution_top_makes = top_makes_data.groupby(['Make', 'Model']).size().sort_values(ascending=False).reset_index(name='Number of Vehicles')
+
+top_models = ev_model_distribution_top_makes.head(10)
+
+plt.figure(figsize=(12, 8))
+sns.barplot(x='Number of Vehicles', y='Model', hue='Make', data=top_models, palette="viridis")
+plt.title('Top Models in Top 3 Makes by EV Registrations')
+plt.xlabel('Number of Vehicles Registered')
+plt.ylabel('Model')
+plt.legend(title='Make', loc='center right')
+plt.tight_layout()
+plt.show()
+
+let’s look at the distribution of electric ranges in the dataset and identify any notable trends, such as improvements over time or variations
+between different vehicle types or manufacturers:
+
+plt.figure(figsize=(12, 6))
+sns.histplot(ev_data['Electric Range'], bins=30, kde=True, color='royalblue')
+plt.title('Distribution of Electric Vehicle Ranges')
+plt.xlabel('Electric Range (miles)')
+plt.ylabel('Number of Vehicles')
+plt.axvline(ev_data['Electric Range'].mean(), color='red', linestyle='--', label=f'Mean Range: {ev_data["Electric Range"].mean():.2f} miles')
+plt.legend()
+plt.show()
+
+# calculating the average electric range by model year
+average_range_by_year = ev_data.groupby('Model Year')['Electric Range'].mean().reset_index()
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(x='Model Year', y='Electric Range', data=average_range_by_year, marker='o', color='green')
+plt.title('Average Electric Range by Model Year')
+plt.xlabel('Model Year')
+plt.ylabel('Average Electric Range (miles)')
+plt.grid(True)
+plt.show()
+
+Next, let’s explore how electric ranges vary among the top manufacturers and models.
+
+average_range_by_model = top_makes_data.groupby(['Make', 'Model'])['Electric Range'].mean().sort_values(ascending=False).reset_index()
+
+# the top 10 models with the highest average electric range
+top_range_models = average_range_by_model.head(10)
+
+plt.figure(figsize=(12, 8))
+barplot = sns.barplot(x='Electric Range', y='Model', hue='Make', data=top_range_models, palette="cool")
+plt.title('Top 10 Models by Average Electric Range in Top Makes')
+plt.xlabel('Average Electric Range (miles)')
+plt.ylabel('Model')
+plt.legend(title='Make', loc='center right')
+plt.show()
+
+# calculate the number of EVs registered each year
+ev_registration_counts = ev_data['Model Year'].value_counts().sort_index()
+ev_registration_counts
+
+We’ll calculate the Compound Annual Growth Rate (CAGR) between a recent year with complete data (2023) and an earlier year to project the 2024 figures.
+Additionally, using this growth rate, we can estimate the market size for the next five years. Let’s proceed with these calculations:
+
+from scipy.optimize import curve_fit
+import numpy as np
+
+# filter the dataset to include years with complete data, assuming 2023 is the last complete year
+filtered_years = ev_registration_counts[ev_registration_counts.index <= 2023]
+
+def exp_growth(x, a, b):
+    return a * np.exp(b * x)
+
+x_data = filtered_years.index - filtered_years.index.min()
+y_data = filtered_years.values
+
+params, covariance = curve_fit(exp_growth, x_data, y_data)
+
+forecast_years = np.arange(2024, 2024 + 6) - filtered_years.index.min()
+forecasted_values = exp_growth(forecast_years, *params)
+
+forecasted_evs = dict(zip(forecast_years + filtered_years.index.min(), forecasted_values))
+print(forecasted_evs)
+
+
+Now, let’s plot the estimated market size data:
+
+years = np.arange(filtered_years.index.min(), 2029 + 1)
+actual_years = filtered_years.index
+forecast_years_full = np.arange(2024, 2029 + 1)
+
+# actual and forecasted values
+actual_values = filtered_years.values
+forecasted_values_full = [forecasted_evs[year] for year in forecast_years_full]
+
+plt.figure(figsize=(12, 8))
+plt.plot(actual_years, actual_values, 'bo-', label='Actual Registrations')
+plt.plot(forecast_years_full, forecasted_values_full, 'ro--', label='Forecasted Registrations')
+
+plt.title('Current & Estimated EV Market')
+plt.xlabel('Year')
+plt.ylabel('Number of EV Registrations')
+plt.legend()
+plt.grid(True)
+
+plt.show()
+
+
+
+
+
+
+
